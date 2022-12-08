@@ -156,15 +156,9 @@ class Directory implements HaveData {
     return result;
   }
 
-  List<Directory> getChildrens() {
-    return _childrens;
-  }
+  List<Directory> getChildrens() => _childrens;
 
-  Directory? getParent() {
-    return _parent;
-  }
+  Directory? getParent() => _parent;
 
-  String getName() {
-    return _name;
-  }
+  String getName() => _name;
 }
