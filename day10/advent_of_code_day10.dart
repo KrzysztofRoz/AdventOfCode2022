@@ -90,7 +90,7 @@ processLinesTask(List<String> lines) {
     var builder = '';
     for (var pixel in row) {
       if (pixel == '#') {
-        builder += chalk.green('#');
+        builder += chalk.green('█');
       } else
         (builder += chalk.red('.'));
     }
