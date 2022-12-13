@@ -1,198 +1,173 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:convert';
 import 'package:chalkdart/chalk.dart'; //package for coloring letters in console output
 
 void main(List<String> arguments) {
-  var file = new File('path/file.txt');
+  var file = new File('/path/file.txt');
   file.readAsLines().then(processLinesTask);
 }
 
 //program for parsing monkeys
 processLinesTask(List<String> lines) {
-  List<Monkey> monkeys = []; //list of our monkeys
-  var actualMonkey = 0; //index of monkey we set values
-  //start parsing input i also remove all tabs for easier parsing
+  List<List<Point>> points = [];
+  var startX;
+  var startY;
+  //parser of grid to point List
+  var width = 0;
+  var haight = 0;
   for (var line in lines) {
-    //increment monkey to create new one
-    if (line.isEmpty) {
-      actualMonkey++;
-      continue;
-    }
-    var elements = line.split(' ');
-    var first = elements.elementAt(0);
-    //create new monkey
-    if (first == 'Monkey') {
-      var monkey = Monkey();
-      monkeys.add(Monkey());
-    } //setting items on monkeys
-    if (first == 'Starting') {
-      var itemsLine = line.split(':').elementAt(1);
-      var items = itemsLine.split(', ');
-      for (var item in items) {
-        monkeys.elementAt(actualMonkey).addItem(BigInt.parse(item));
-      }
-    } //setting operation parameters
-    if (first == 'Operation:') {
-      if (elements.elementAt(4) == '*') {
-        if (elements.elementAt(5) == 'old') {
-          monkeys.elementAt(actualMonkey).isSquare();
-        } else {
-          monkeys.elementAt(actualMonkey).setOperation('*');
-          monkeys
-              .elementAt(actualMonkey)
-              .setOpValue(BigInt.parse(elements.elementAt(5)));
-        }
+    var elements = line.split('');
+    width = 0;
+    List<Point> pointRow = [];
+    for (var element in elements) {
+      if (element == 'S') {
+        pointRow.add(Point(width, haight, 0));
+        startX = width;
+        startY = haight;
       } else {
-        if (elements.elementAt(4) == '+') {
-          monkeys.elementAt(actualMonkey).setOperation('+');
-          monkeys
-              .elementAt(actualMonkey)
-              .setOpValue(BigInt.parse(elements.elementAt(5)));
+        if (element == 'E')
+          pointRow.add(Point(width, haight, 27));
+        else {
+          pointRow.add(Point(width, haight, element.codeUnitAt(0) - 96));
         }
       }
-    } //setting test values
-    if (first == 'Test:') {
-      monkeys
-          .elementAt(actualMonkey)
-          .setTest(BigInt.parse(elements.elementAt(3)));
+      width++;
     }
-    if (first == 'If') {
-      var second = elements.elementAt(1);
-      if (second == 'true:') {
-        monkeys
-            .elementAt(actualMonkey)
-            .setPass(int.parse(elements.elementAt(5)));
+    points.add(pointRow);
+    haight++;
+  }
+  //Setting adject points for each points
+  width = points.elementAt(0).length;
+  haight = points.length;
+  for (int i = 0; i < width; i++) {
+    for (int j = 0; j < haight; j++) {
+      var left;
+      var right;
+      var up;
+      var bot;
+      //setting horizontal adject points;
+      if (i != 0 && i != width - 1) {
+        right = points.elementAt(j).elementAt(i + 1);
+        left = points.elementAt(j).elementAt(i - 1);
+        points.elementAt(j).elementAt(i).addPoint(right);
+        points.elementAt(j).elementAt(i).addPoint(left);
+      } else {
+        //edge cases only left/right adject point
+        if (i == 0) {
+          right = points.elementAt(j).elementAt(i + 1);
+          points.elementAt(j).elementAt(i).addPoint(right);
+        }
+        if (i == width - 1) {
+          left = points.elementAt(j).elementAt(i - 1);
+          points.elementAt(j).elementAt(i).addPoint(left);
+        }
       }
-      if (second == 'false:') {
-        monkeys
-            .elementAt(actualMonkey)
-            .setFail(int.parse(elements.elementAt(5)));
+      //setting vertical adject points
+      if (j != 0 && j != haight - 1) {
+        up = points.elementAt(j - 1).elementAt(i);
+        bot = points.elementAt(j + 1).elementAt(i);
+        points.elementAt(j).elementAt(i).addPoint(up);
+        points.elementAt(j).elementAt(i).addPoint(bot);
+      } else {
+        //edge cases only up/bot adjeect point
+        if (j == 0) {
+          up = points.elementAt(j + 1).elementAt(i);
+          points.elementAt(j).elementAt(i).addPoint(up);
+        }
+        if (j == haight - 1) {
+          bot = points.elementAt(j - 1).elementAt(i);
+          points.elementAt(j).elementAt(i).addPoint(bot);
+        }
       }
     }
   }
-  //perform rounds
-  for (int rounds = 0; rounds < 10000; rounds++) {
-    for (var monkey in monkeys) {
-      var items = monkey.getItems();
-      for (var item in items) {
-        Pair pair = monkey.operation(item);
-        monkeys.elementAt(pair.getMonkey()).addItem(pair.getItem());
-      }
-      monkey.removeItems();
-    }
-  }
-  //each monkey counter display
-  int i = 0;
-  for (var monkey in monkeys) {
-    print('Monkey $i : ${monkey.getCounter()}');
-    i++;
-  }
-
-  //monkey business finder
-  BigInt max1 = BigInt.from(0);
-  BigInt max2 = BigInt.from(0);
-  for (var monkey in monkeys) {
-    if (monkey.getCounter() > max1) {
-      max2 = max1;
-      max1 = monkey.getCounter();
-    } else {
-      if (monkey.getCounter() > max2) {
-        max2 = monkey.getCounter();
-      }
-    }
-  }
-  print('monkey business is ${max1 * max2}');
+  //naw we hev full field structure (graph) with setted adject points and we can start finding shortest path
+  var result = bfs(points, startX, startY, 27);
+  print(result);
 }
 
-class Monkey {
-  //seted value for each monkey by parser to perform correct operation
-  BigInt _inspectCounter = BigInt.from(0);
-  List<BigInt> _items = [];
-  BigInt _opValue = BigInt.from(0);
-  String _operation = '';
-  //value for tests
-  BigInt _testDiv = BigInt.from(0);
-  //the index of monkey to
-  int _failMonkey = 0;
-  int _passMonkey = 0;
-  bool _square = false;
+int bfs(List<List<Point>> points, int startX, int startY, int searchedValue) {
+  var moves = 0;
+  var nodesLayer =
+      1; //for counting nodes in actual layer and know when counting moves
+  var nodesNext = 0; //for counting node in next layer
+  bool reachEnd = false;
+  var visited = Set<Point>();
+  var queue = Queue<Point>();
+  var actual = points.elementAt(startY).elementAt(startX);
 
-  Monkey();
-  //method which perform monkey operation
-  Pair operation(BigInt old) {
-    _inspectCounter += BigInt.from(1);
-    BigInt newItem = BigInt.from(0);
-    if (_square) {
-      newItem = old * old;
-    } else {
-      if (_operation == '*') {
-        newItem = old * _opValue;
+  queue.add(actual); //add starting element to the queue
+  visited.add(actual);
+  while (queue.isNotEmpty && !reachEnd) {
+    actual = queue.elementAt(0); //dequeued the element
+    visited.add(actual);
+    queue.removeFirst();
+    var adj = actual.getConnectedPoints();
+    for (var point in adj) {
+      //add next nodes to queue (if not already added)
+      if (point.getHaight() == searchedValue) {
+        reachEnd = true;
       }
-      if (_operation == '+') {
-        newItem = old + _opValue;
+      if (!visited.contains(point)) {
+        visited.add(point);
+        queue.add(point);
+        nodesNext++;
       }
     }
-    //newItem = newItem ~/ 3; for task one
-    newItem = newItem %
-        BigInt.from(2 *
-            17 *
-            7 *
-            11 *
-            19 *
-            5 *
-            13 *
-            3); //the prime numbers from my monkeys,
-    //due to the euclid theorem this doesn't change the resulto of devision as we got all monkeys divisable factor
-
-    if (newItem % _testDiv == BigInt.from(0)) {
-      return Pair(_passMonkey, newItem);
+    nodesLayer--; //remove one from actual layer
+    if (nodesLayer == 0) {
+      //if there is no nodes in layer we go to the next layer and increment moves counter
+      nodesLayer = nodesNext;
+      nodesNext = 0;
+      moves++;
     }
-    return Pair(_failMonkey, newItem);
   }
 
-  void removeItems() {
-    _items = [];
-  }
-
-  void addItem(BigInt item) {
-    _items.add(item);
-  }
-
-  void setOpValue(BigInt value) {
-    _opValue = value;
-  }
-
-  void setOperation(String operation) {
-    _operation = operation;
-  }
-
-  void setTest(BigInt test) {
-    _testDiv = test;
-  }
-
-  void setFail(int monkey) {
-    _failMonkey = monkey;
-  }
-
-  void setPass(int monkey) {
-    _passMonkey = monkey;
-  }
-
-  void isSquare() {
-    _square = true;
-  }
-
-  BigInt getCounter() => _inspectCounter;
-  List<BigInt> getItems() => _items;
+  return moves;
 }
 
-class Pair {
-  int _monkey;
-  BigInt _item;
-  Pair(this._monkey, this._item);
+class Point {
+  int _x;
+  int _y;
+  int _haight;
+  bool _visited = false;
+  List<Point> _connectPoint = [];
 
-  int getMonkey() => _monkey;
-  BigInt getItem() => _item;
+  Point(this._x, this._y, this._haight);
+
+  void setVisited() {
+    _visited = true;
+  }
+
+//method to add points, according to task when points have different haight values by more than 2 thera are not adject
+  void addPoint(Point point) {
+    if (point.getHaight() <= _haight + 1 && point.getHaight() >= _haight - 1) {
+      _connectPoint.add(point);
+    }
+  }
+
+  int getX() => _x;
+  int getY() => _y;
+  int getHaight() => _haight;
+  bool isVisited() => _visited;
+  List<Point> getConnectedPoints() => _connectPoint;
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! Point) return false;
+    if (_x != other._x) return false;
+    if (_y != other._y) return false;
+    return true;
+  }
+
+  @override
+  int get hashCode {
+    var result = 17;
+    result = 37 * result + _x.hashCode;
+    result = 37 * result + _y.hashCode;
+    return result;
+  }
 }
